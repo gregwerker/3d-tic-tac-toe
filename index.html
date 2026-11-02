@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3D Tic-Tac-Toe</title>
+<meta name="description" content="Four-in-a-row on a 4×4×4 cube you can rotate. Play the computer on easy, medium or hard.">
+<style>
+  :root {
+    --bg: #f4f1ea; --panel: #ffffff; --text: #1f2328; --muted: #5b6170; --border: #ddd6c8;
+    --accent: #2563eb; --on-accent: #ffffff; --p1: #2563eb; --p2: #dc2626; --win: #f59e0b;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    min-height: 100vh; display: flex; flex-direction: column;
+    background: var(--bg); color: var(--text);
+    font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    transition: background .3s, color .3s;
+  }
+  header {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 14px 20px;
+  }
+  h1 { font-size: 20px; margin: 0; letter-spacing: .2px; }
+  h1 small { font-weight: 400; color: var(--muted); font-size: 14px; margin-left: 6px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--panel); }
+  .seg button { border: 0; background: transparent; color: var(--text); padding: 7px 12px; font: inherit; cursor: pointer; }
+  .seg button + button { border-left: 1px solid var(--border); }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+  .btn {
+    border: 1px solid var(--border); background: var(--panel); color: var(--text);
+    padding: 7px 14px; border-radius: 10px; font: inherit; cursor: pointer;
+  }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+  .swatches { display: inline-flex; gap: 7px; align-items: center; }
+  .swatch {
+    width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border);
+    cursor: pointer; padding: 0;
+  }
+  .swatch[aria-pressed="true"] { outline: 2px solid var(--text); outline-offset: 2px; }
+  main {
+    flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 16px; padding: 0 20px 20px;
+  }
+  #stage {
+    position: relative; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 14px; overflow: hidden; min-height: 460px;
+  }
+  #stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+  #stage canvas.dragging { cursor: grabbing; }
+  .hint {
+    position: absolute; left: 12px; bottom: 10px; font-size: 12px; color: var(--muted);
+    pointer-events: none;
+  }
+  .spin { position: absolute; right: 12px; bottom: 8px; font-size: 12px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+  aside { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
+  #status { font-size: 17px; font-weight: 600; min-height: 24px; }
+  .legend { display: flex; gap: 14px; margin-top: 6px; color: var(--muted); font-size: 13px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .mk { width: 12px; height: 12px; display: inline-block; }
+  .mk.p1 { background: var(--p1); border-radius: 50%; }
+  .mk.p2 { background: var(--p2); border-radius: 2px; }
+  .score { display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; }
+  .score b { display: block; font-size: 22px; }
+  .score span { font-size: 12px; color: var(--muted); }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .row label { font-size: 13px; color: var(--muted); }
+  .layers { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .layer h3 { font-size: 12px; margin: 0 0 4px; color: var(--muted); font-weight: 600; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; }
+  .grid4 button {
+    aspect-ratio: 1; border: 1px solid var(--border); background: var(--bg);
+    border-radius: 5px; padding: 0; cursor: pointer; position: relative;
+  }
+  .grid4 button:disabled { cursor: default; }
+  .grid4 button .dot { position: absolute; inset: 20%; border-radius: 50%; }
+  .grid4 button .dot.p1 { background: var(--p1); }
+  .grid4 button .dot.p2 { background: var(--p2); border-radius: 2px; }
+  .grid4 button.hover { border-color: var(--accent); }
+  .grid4 button.last { box-shadow: 0 0 0 2px var(--text) inset; }
+  .grid4 button.win { box-shadow: 0 0 0 3px var(--win) inset; }
+  .help { font-size: 13px; color: var(--muted); margin: 0; }
+  #stageStatus {
+    display: none; position: absolute; left: 12px; top: 10px; font-weight: 600;
+    background: var(--panel); padding: 3px 8px; border-radius: 8px; pointer-events: none;
+  }
+  .hint .short { display: none; }
+  @media (max-width: 860px) {
+    main { grid-template-columns: 1fr; }
+    #stage { min-height: 0; height: 62vh; }
+    #stageStatus { display: block; }
+    .hint .long { display: none; }
+    .hint .short { display: inline; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>3D Tic-Tac-Toe <small>4 in a row on a 4×4×4 cube</small></h1>
+  <div class="controls">
+    <div class="seg" role="group" aria-label="Difficulty">
+      <button data-diff="easy">Easy</button>
+      <button data-diff="medium">Medium</button>
+      <button data-diff="hard">Hard</button>
+    </div>
+    <div class="swatches" role="group" aria-label="Colour theme" id="swatches"></div>
+    <button class="btn primary" id="newGame">New game</button>
+  </div>
+</header>
+
+<main>
+  <div id="stage">
+    <div id="stageStatus" aria-hidden="true"></div>
+    <div class="hint"><span class="long">Drag to rotate · scroll or pinch to zoom · click a dot to play</span><span class="short">Drag to rotate · tap a dot</span></div>
+    <label class="spin"><input type="checkbox" id="spin" checked> Auto-rotate</label>
+  </div>
+  <aside>
+    <div class="card">
+      <div id="status" aria-live="polite">Your move</div>
+      <div class="legend">
+        <span><i class="mk p1"></i>You (spheres)</span>
+        <span><i class="mk p2"></i>Computer (cubes)</span>
+      </div>
+    </div>
+    <div class="card score">
+      <div><b id="sYou">0</b><span>You</span></div>
+      <div><b id="sDraw">0</b><span>Draws</span></div>
+      <div><b id="sCpu">0</b><span>Computer</span></div>
+    </div>
+    <div class="card">
+      <div class="row">
+        <label for="first">First move</label>
+        <select id="first" class="btn">
+          <option value="human">You</option>
+          <option value="ai">Computer</option>
+          <option value="alternate">Alternate</option>
+        </select>
+      </div>
+    </div>
+    <div class="card">
+      <div class="layers" id="layers"></div>
+    </div>
+    <p class="help">Get four in a row in any direction: along a row, a column, straight up through the layers, or diagonally, including the four corner-to-corner diagonals of the cube.</p>
+  </aside>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+"use strict";
+
+/* ---------- Board geometry: 64 cells, 76 winning lines ---------- */
+const idx = (x, y, z) => x + 4 * y + 16 * z;           // z = layer (0 = bottom)
+const coords = i => [i % 4, (i >> 2) % 4, i >> 4];
+const LINES = [];
+for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (let dz = -1; dz <= 1; dz++) {
+  const first = dx || dy || dz;
+  if (first <= 0) continue;                              // one direction from each opposite pair
+  for (let x = 0; x < 4; x++) for (let y = 0; y < 4; y++) for (let z = 0; z < 4; z++) {
+    const ex = x + 3 * dx, ey = y + 3 * dy, ez = z + 3 * dz;
+    if (ex < 0 || ex > 3 || ey < 0 || ey > 3 || ez < 0 || ez > 3) continue;
+    LINES.push([0, 1, 2, 3].map(k => idx(x + k * dx, y + k * dy, z + k * dz)));
+  }
+}
+const CELL_LINES = Array.from({ length: 64 }, () => []);
+LINES.forEach((line, li) => line.forEach(c => CELL_LINES[c].push(li)));
+
+/* ---------- Computer player ---------- */
+const ATTACK = [1, 8, 60, 1e5], DEFEND = [1, 6, 40, 5e4];
+
+function empties(b) { const out = []; for (let i = 0; i < 64; i++) if (!b[i]) out.push(i); return out; }
+
+// Empty cells that would complete four in a row for player p.
+function winningCells(b, p) {
+  const out = new Set();
+  for (const line of LINES) {
+    let mine = 0, gap = -1, blocked = false;
+    for (const c of line) {
+      if (b[c] === p) mine++; else if (b[c] === 0) gap = c; else { blocked = true; break; }
+    }
+    if (!blocked && mine === 3) out.add(gap);
+  }
+  return [...out];
+}
+
+// Moves that make three in a line (with the fourth cell empty) for p.
+function threatMoves(b, p) {
+  const o = 3 - p, out = [];
+  for (const m of empties(b)) {
+    for (const li of CELL_LINES[m]) {
+      let mine = 0, theirs = 0;
+      for (const c of LINES[li]) { if (b[c] === p) mine++; else if (b[c] === o) theirs++; }
+      if (mine === 2 && theirs === 0) { out.push(m); break; }
+    }
+  }
+  return out;
+}
+
+// How good is cell m for player p: build its own open lines, spoil the opponent's.
+function moveScore(b, p, m) {
+  const o = 3 - p; let s = 0;
+  for (const li of CELL_LINES[m]) {
+    let mine = 0, theirs = 0;
+    for (const c of LINES[li]) { if (b[c] === p) mine++; else if (b[c] === o) theirs++; }
+    if (theirs === 0) s += ATTACK[mine];
+    if (mine === 0) s += DEFEND[theirs];
+  }
+  return s;
+}
+function ranked(b, p) {
+  return empties(b).map(m => ({ m, s: moveScore(b, p, m) + Math.random() })).sort((a, c) => c.s - a.s);
+}
+function createsFork(b, p, m) { b[m] = p; const n = winningCells(b, p).length; b[m] = 0; return n >= 2; }
+
+// Forced win by continuous threats ("victory by continuous forcing"):
+// keep making three-in-a-row so the opponent must block, until we make two threats at once.
+let nodes = 0;
+function forcedWin(b, p, depth, limit) {
+  if (depth === 0 || ++nodes > limit) return -1;
+  const o = 3 - p;
+  for (const m of threatMoves(b, p)) {
+    b[m] = p;
+    const threats = winningCells(b, p);
+    let wins = threats.length >= 2;
+    if (!wins && threats.length === 1) {
+      const block = threats[0];
+      b[block] = o;                                   // opponent's forced reply
+      if (winningCells(b, o).length === 0 && forcedWin(b, p, depth - 1, limit) !== -1) wins = true;
+      b[block] = 0;
+    }
+    b[m] = 0;
+    if (wins) return m;
+  }
+  return -1;
+}
+function hasForcedWin(b, p, depth, limit) { nodes = 0; return forcedWin(b, p, depth, limit); }
+
+function pick(list) { return list[Math.floor(Math.random() * list.length)]; }
+
+function chooseMove(board, level) {
+  const b = board.slice(), me = 2, you = 1;
+  const win = winningCells(b, me), block = winningCells(b, you), r = ranked(b, me);
+
+  if (level === "easy") {
+    if (win.length && Math.random() < 0.7) return win[0];
+    if (block.length && Math.random() < 0.5) return block[0];
+    return pick(r.slice(0, 12)).m;
+  }
+  if (win.length) return win[0];
+  if (block.length) return block[0];
+  const forks = threatMoves(b, me).filter(m => createsFork(b, me, m));
+
+  if (level === "medium") {
+    if (forks.length && Math.random() < 0.8) return forks[0];
+    return pick(r.slice(0, 3)).m;
+  }
+
+  // Hard
+  if (forks.length) return forks[0];
+  const attack = hasForcedWin(b, me, 10, 20000);
+  if (attack !== -1) return attack;
+
+  // Does the opponent have a forced win? Find a move that stops it.
+  const danger = hasForcedWin(b, you, 8, 6000);
+  const safeAfter = m => {
+    b[m] = me;
+    let ok;
+    const mine = winningCells(b, me);
+    if (mine.length) {                                 // our threat forces their block first
+      b[mine[0]] = you;
+      ok = winningCells(b, you).length === 0 && hasForcedWin(b, you, 8, 3000) === -1;
+      b[mine[0]] = 0;
+    } else {
+      ok = hasForcedWin(b, you, 8, 3000) === -1 && !threatMoves(b, you).some(x => createsFork(b, you, x));
+    }
+    b[m] = 0;
+    return ok;
+  };
+  if (danger !== -1) {
+    const candidates = [...new Set([danger, ...threatMoves(b, me), ...r.slice(0, 16).map(x => x.m)])];
+    for (const m of candidates) if (safeAfter(m)) return m;
+    return danger;
+  }
+
+  // Otherwise: best-scoring move that doesn't hand the opponent a fork.
+  let best = r[0].m, bestVal = -Infinity;
+  for (const { m, s } of r.slice(0, 12)) {
+    b[m] = me;
+    const theirForks = threatMoves(b, you).filter(x => createsFork(b, you, x)).length;
+    const theirBest = ranked(b, you)[0]?.s || 0;
+    b[m] = 0;
+    const val = s - 0.5 * theirBest - (theirForks ? 1e6 : 0);
+    if (val > bestVal) { bestVal = val; best = m; }
+  }
+  return best;
+}
+
+/* ---------- Themes ---------- */
+const THEMES = {
+  classic: { name: "Classic",
+    css: { bg: "#f4f1ea", panel: "#ffffff", text: "#1f2328", muted: "#5b6170", border: "#ddd6c8", accent: "#2563eb", "on-accent": "#ffffff", p1: "#2563eb", p2: "#dc2626", win: "#f59e0b" },
+    scene: { bg: "#ffffff", grid: "#9aa0aa", plate: "#b8c2d6", plateOpacity: 0.16, dot: "#8d93a0" } },
+  neon: { name: "Neon",
+    css: { bg: "#070a13", panel: "#0e1424", text: "#e6ecff", muted: "#8b96b5", border: "#1f2a44", accent: "#22d3ee", "on-accent": "#04121a", p1: "#22d3ee", p2: "#f472b6", win: "#facc15" },
+    scene: { bg: "#0e1424", grid: "#3b4b75", plate: "#3b82f6", plateOpacity: 0.09, dot: "#53638f" } },
+  forest: { name: "Forest",
+    css: { bg: "#e9efe3", panel: "#f7faf3", text: "#1d2a1f", muted: "#5d6d5f", border: "#cfd9c6", accent: "#2f7d4f", "on-accent": "#ffffff", p1: "#2f7d4f", p2: "#c2662d", win: "#d4a017" },
+    scene: { bg: "#f7faf3", grid: "#7d8f7a", plate: "#8fb48a", plateOpacity: 0.18, dot: "#7f907c" } },
+  sunset: { name: "Sunset",
+    css: { bg: "#1c1226", panel: "#2a1b36", text: "#fdeee8", muted: "#c5a9b8", border: "#45304f", accent: "#ff8a5b", "on-accent": "#1c1226", p1: "#ffb347", p2: "#7dd3fc", win: "#ff5d73" },
+    scene: { bg: "#2a1b36", grid: "#7a5a86", plate: "#ff8a5b", plateOpacity: 0.09, dot: "#8a6a96" } },
+};
+
+/* ---------- Saved preferences (per browser) ---------- */
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("ttt3d." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("ttt3d." + k, JSON.stringify(v)); } catch {} },
+};
+
+/* ---------- Game state ---------- */
+const board = new Int8Array(64);       // 0 empty, 1 you, 2 computer
+let turn = 1, over = false, thinking = false, lastMove = -1, winLine = null, gamesStarted = 0;
+let level = store.get("level", "medium");
+let themeKey = store.get("theme", "classic");
+let first = store.get("first", "human");
+const score = store.get("score", { you: 0, cpu: 0, draw: 0 });
+
+/* ---------- 3D scene ---------- */
+const stage = document.getElementById("stage");
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+stage.prepend(renderer.domElement);
+const canvas = renderer.domElement;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
+let theta = 0.75, phi = 1.12, radius = 13.5;
+function placeCamera() {
+  camera.position.set(radius * Math.sin(phi) * Math.sin(theta), radius * Math.cos(phi), radius * Math.sin(phi) * Math.cos(theta));
+  camera.lookAt(0, 0, 0);
+}
+scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+const sun = new THREE.DirectionalLight(0xffffff, 0.85); sun.position.set(6, 10, 8); scene.add(sun);
+const fill = new THREE.DirectionalLight(0xffffff, 0.35); fill.position.set(-7, -3, -6); scene.add(fill);
+
+const S = 1.15, LH = 1.6;              // spacing within a layer, and between layers
+function cellPos(i) { const [x, y, z] = coords(i); return new THREE.Vector3((x - 1.5) * S, (z - 1.5) * LH, (y - 1.5) * S); }
+
+const plateMat = new THREE.MeshStandardMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide });
+const gridMat = new THREE.LineBasicMaterial({ transparent: true, opacity: 0.7 });
+const dotMat = new THREE.MeshBasicMaterial();
+const p1Mat = new THREE.MeshStandardMaterial({ roughness: 0.35, metalness: 0.1 });
+const p2Mat = new THREE.MeshStandardMaterial({ roughness: 0.4, metalness: 0.1 });
+const ghostMat = new THREE.MeshStandardMaterial({ transparent: true, opacity: 0.35, depthWrite: false });
+const winMat = new THREE.MeshBasicMaterial();
+const p1Geo = new THREE.SphereGeometry(0.34, 32, 20);
+const p2Geo = new THREE.BoxGeometry(0.52, 0.52, 0.52);
+
+for (let z = 0; z < 4; z++) {
+  const y = (z - 1.5) * LH, half = 2 * S;
+  const plate = new THREE.Mesh(new THREE.BoxGeometry(4 * S, 0.03, 4 * S), plateMat);
+  plate.position.y = y - 0.02; scene.add(plate);
+  const pts = [];
+  for (let k = 0; k <= 4; k++) {
+    const t = (k - 2) * S;
+    pts.push(new THREE.Vector3(-half, y, t), new THREE.Vector3(half, y, t));
+    pts.push(new THREE.Vector3(t, y, -half), new THREE.Vector3(t, y, half));
+  }
+  scene.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), gridMat));
+}
+
+const dots = [], hitTargets = [], pieces = new Array(64).fill(null);
+const dotGeo = new THREE.SphereGeometry(0.07, 12, 8), hitGeo = new THREE.SphereGeometry(0.45, 10, 8);
+const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+for (let i = 0; i < 64; i++) {
+  const d = new THREE.Mesh(dotGeo, dotMat); d.position.copy(cellPos(i)); scene.add(d); dots.push(d);
+  const h = new THREE.Mesh(hitGeo, hitMat); h.position.copy(cellPos(i)); h.userData.cell = i; scene.add(h); hitTargets.push(h);
+}
+const ghost = new THREE.Mesh(p1Geo, ghostMat); ghost.visible = false; scene.add(ghost);
+let winMesh = null;
+
+function addPiece(i, p) {
+  const m = new THREE.Mesh(p === 1 ? p1Geo : p2Geo, p === 1 ? p1Mat : p2Mat);
+  m.position.copy(cellPos(i));
+  if (p === 2) m.rotation.set(0.3, 0.6, 0);
+  m.scale.setScalar(0.01);
+  m.userData.born = performance.now();
+  scene.add(m); pieces[i] = m; dots[i].visible = false;
+}
+function clearPieces() {
+  pieces.forEach((m, i) => { if (m) scene.remove(m); pieces[i] = null; dots[i].visible = true; });
+  if (winMesh) { scene.remove(winMesh); winMesh = null; }
+}
+function showWin(line) {
+  const a = cellPos(line[0]), b = cellPos(line[3]);
+  const len = a.distanceTo(b) + 0.9;
+  winMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, len, 16), winMat);
+  winMesh.position.copy(a.clone().add(b).multiplyScalar(0.5));
+  winMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
+  scene.add(winMesh);
+}
+
+function applyTheme(key) {
+  const t = THEMES[key] || THEMES.classic; themeKey = key in THEMES ? key : "classic";
+  for (const [k, v] of Object.entries(t.css)) document.documentElement.style.setProperty("--" + k, v);
+  scene.background = new THREE.Color(t.scene.bg);
+  plateMat.color.set(t.scene.plate); plateMat.opacity = t.scene.plateOpacity;
+  gridMat.color.set(t.scene.grid); dotMat.color.set(t.scene.dot);
+  p1Mat.color.set(t.css.p1); p1Mat.emissive.set(t.css.p1).multiplyScalar(0.15);
+  p2Mat.color.set(t.css.p2); p2Mat.emissive.set(t.css.p2).multiplyScalar(0.15);
+  ghostMat.color.set(t.css.p1); winMat.color.set(t.css.win);
+  document.querySelectorAll(".swatch").forEach(s => s.setAttribute("aria-pressed", s.dataset.theme === themeKey));
+  store.set("theme", themeKey);
+}
+
+/* ---------- Rendering loop ---------- */
+let autoSpin = store.get("spin", true), lastInteraction = 0;
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+  if (!sized) { radius = 13.5 / Math.min(1, camera.aspect * 1.15); sized = true; }  // pull back on narrow screens
+}
+let sized = false;
+new ResizeObserver(resize).observe(stage);
+function animate(now) {
+  if (autoSpin && now - lastInteraction > 2500 && !pointers.size) theta += 0.0016;
+  placeCamera();
+  for (let i = 0; i < 64; i++) {
+    const m = pieces[i]; if (!m) continue;
+    const t = Math.min(1, (now - m.userData.born) / 280);
+    let s = 1 + 0.25 * Math.sin(Math.PI * t) * (1 - t);   // quick pop-in
+    s = t < 1 ? Math.max(0.01, t * s) : 1;
+    if (winLine && winLine.includes(i)) s = 1 + 0.12 * Math.sin(now / 160);
+    else if (i === lastMove && !over) s *= 1 + 0.05 * Math.sin(now / 220);
+    m.scale.setScalar(s);
+  }
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+
+/* ---------- Pointer: rotate, zoom, hover, click ---------- */
+const pointers = new Map();
+const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2();
+let downX = 0, downY = 0, lastX = 0, lastY = 0, moved = false, pinch = 0, hover = -1;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+function pinchDistance() { const [a, b] = [...pointers.values()]; return Math.hypot(a.x - b.x, a.y - b.y); }
+function cellAt(e) {
+  const r = canvas.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  const hit = raycaster.intersectObjects(hitTargets)[0];
+  return hit ? hit.object.userData.cell : -1;
+}
+function setHover(i) {
+  hover = i;
+  const ok = i >= 0 && !board[i] && !over && turn === 1 && !thinking;
+  ghost.visible = ok; if (ok) ghost.position.copy(cellPos(i));
+  document.querySelectorAll(".grid4 button").forEach(btn => btn.classList.toggle("hover", +btn.dataset.cell === i && ok));
+}
+canvas.addEventListener("pointerdown", e => {
+  canvas.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  lastInteraction = performance.now();
+  if (pointers.size === 1) { downX = lastX = e.clientX; downY = lastY = e.clientY; moved = false; }
+  else if (pointers.size === 2) { pinch = pinchDistance(); moved = true; }
+});
+canvas.addEventListener("pointermove", e => {
+  if (!pointers.has(e.pointerId)) { if (e.pointerType === "mouse") setHover(cellAt(e)); return; }
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  lastInteraction = performance.now();
+  if (pointers.size === 1) {
+    if (Math.hypot(e.clientX - downX, e.clientY - downY) > 6) { moved = true; canvas.classList.add("dragging"); setHover(-1); }
+    if (moved) {
+      theta -= (e.clientX - lastX) * 0.008;
+      phi = clamp(phi - (e.clientY - lastY) * 0.008, 0.2, Math.PI - 0.2);
+    }
+    lastX = e.clientX; lastY = e.clientY;
+  } else if (pointers.size === 2) {
+    const d = pinchDistance(); radius = clamp(radius * pinch / d, 7, 26); pinch = d;
+  }
+});
+function endPointer(e) {
+  const wasSingle = pointers.size === 1;
+  pointers.delete(e.pointerId);
+  canvas.classList.remove("dragging");
+  if (wasSingle && !moved && e.type === "pointerup") { const i = cellAt(e); if (i >= 0) humanMove(i); }
+}
+canvas.addEventListener("pointerup", endPointer);
+canvas.addEventListener("pointercancel", endPointer);
+canvas.addEventListener("pointerleave", e => { if (e.pointerType === "mouse") setHover(-1); });
+canvas.addEventListener("wheel", e => {
+  e.preventDefault(); lastInteraction = performance.now();
+  radius = clamp(radius * (1 + e.deltaY * 0.001), 7, 26);
+}, { passive: false });
+
+/* ---------- Side panel: flat view of the four layers ---------- */
+const layersEl = document.getElementById("layers");
+for (let z = 3; z >= 0; z--) {
+  const wrap = document.createElement("div"); wrap.className = "layer";
+  wrap.innerHTML = `<h3>Layer ${z + 1}${z === 3 ? " (top)" : z === 0 ? " (bottom)" : ""}</h3>`;
+  const grid = document.createElement("div"); grid.className = "grid4";
+  for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) {
+    const i = idx(x, y, z), btn = document.createElement("button");
+    btn.dataset.cell = i; btn.setAttribute("aria-label", `Layer ${z + 1}, row ${y + 1}, column ${x + 1}`);
+    btn.addEventListener("click", () => humanMove(i));
+    btn.addEventListener("mouseenter", () => setHover(i));
+    btn.addEventListener("mouseleave", () => setHover(-1));
+    grid.appendChild(btn);
+  }
+  wrap.appendChild(grid); layersEl.appendChild(wrap);
+}
+
+/* ---------- Game flow ---------- */
+const statusEl = document.getElementById("status");
+function updateUI() {
+  let msg;
+  if (over) msg = winLine ? (board[winLine[0]] === 1 ? "You win! 🎉" : "Computer wins") : "It's a draw";
+  else msg = thinking ? "Computer is thinking…" : "Your move";
+  statusEl.textContent = msg;
+  document.getElementById("stageStatus").textContent = msg;
+  document.querySelectorAll(".grid4 button").forEach(btn => {
+    const i = +btn.dataset.cell, v = board[i];
+    btn.innerHTML = v ? `<span class="dot p${v}"></span>` : "";
+    btn.disabled = over || !!v || thinking || turn !== 1;
+    btn.classList.toggle("last", i === lastMove && !over);
+    btn.classList.toggle("win", !!winLine && winLine.includes(i));
+  });
+  document.getElementById("sYou").textContent = score.you;
+  document.getElementById("sCpu").textContent = score.cpu;
+  document.getElementById("sDraw").textContent = score.draw;
+  document.querySelectorAll("[data-diff]").forEach(b => b.setAttribute("aria-pressed", b.dataset.diff === level));
+}
+function winFor(i, p) {
+  for (const li of CELL_LINES[i]) if (LINES[li].every(c => board[c] === p)) return LINES[li];
+  return null;
+}
+function play(i, p) {
+  board[i] = p; addPiece(i, p); lastMove = i;
+  const line = winFor(i, p);
+  if (line) { over = true; winLine = line; showWin(line); p === 1 ? score.you++ : score.cpu++; store.set("score", score); }
+  else if (!board.includes(0)) { over = true; score.draw++; store.set("score", score); }
+  else turn = 3 - p;
+  setHover(-1); updateUI();
+}
+function humanMove(i) {
+  if (over || thinking || turn !== 1 || board[i]) return;
+  play(i, 1);
+  if (!over) computerMove();
+}
+function computerMove() {
+  thinking = true; updateUI();
+  const started = performance.now(), game = gamesStarted;
+  setTimeout(() => {
+    const m = chooseMove(board, level);
+    const wait = Math.max(0, 450 - (performance.now() - started));
+    setTimeout(() => {
+      if (game !== gamesStarted) return;           // a new game was started meanwhile
+      thinking = false; play(m, 2);
+    }, wait);
+  }, 30);
+}
+function newGame() {
+  gamesStarted++;
+  board.fill(0); clearPieces();
+  over = false; thinking = false; lastMove = -1; winLine = null;
+  const aiFirst = first === "ai" || (first === "alternate" && gamesStarted % 2 === 0);
+  turn = aiFirst ? 2 : 1;
+  updateUI();
+  if (aiFirst) computerMove();
+}
+
+/* ---------- Controls ---------- */
+document.querySelectorAll("[data-diff]").forEach(b => b.addEventListener("click", () => {
+  level = b.dataset.diff; store.set("level", level); updateUI();
+}));
+const sw = document.getElementById("swatches");
+for (const [key, t] of Object.entries(THEMES)) {
+  const b = document.createElement("button");
+  b.className = "swatch"; b.dataset.theme = key; b.title = t.name; b.setAttribute("aria-label", t.name + " theme");
+  b.style.background = `linear-gradient(135deg, ${t.css.p1} 0 50%, ${t.css.p2} 50% 100%)`;
+  b.addEventListener("click", () => applyTheme(key));
+  sw.appendChild(b);
+}
+const firstSel = document.getElementById("first");
+firstSel.value = first;
+firstSel.addEventListener("change", () => { first = firstSel.value; store.set("first", first); });
+const spinBox = document.getElementById("spin");
+spinBox.checked = autoSpin;
+spinBox.addEventListener("change", () => { autoSpin = spinBox.checked; store.set("spin", autoSpin); });
+document.getElementById("newGame").addEventListener("click", newGame);
+
+applyTheme(themeKey);
+resize();
+newGame();
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
